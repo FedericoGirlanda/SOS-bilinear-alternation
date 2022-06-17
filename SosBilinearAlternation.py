@@ -1,64 +1,6 @@
 import numpy as np
 from pydrake.all import Variables, MonomialBasis, Solve, MathematicalProgram, Jacobian, PiecewisePolynomial
 
-#########################################################################################################################################
-# Time-variyng Region of Attraction estimation
-#########################################################################################################################################
-
-def TVSOSrhoVerification(pendulum, controller, x0_traj, time, N, rhof):
-
-    # Initial rho(t) definition # TODO: initial rho computation (exponential init)
-    rho_t = np.ones(N)
-    rho_t[-1] = rhof
-    
-    # Bilinear SOS alternation for improving the first guess
-    convergence = False
-    eps = 0.1
-    while(not convergence):
-        for knot in np.flip([i for i in range(1,N)]):
-            
-            # min value of rho[knot]
-            rho_max = 0.0
-
-            # Search for a multiplier, fixing rho
-            fail = True
-            while (fail):
-                (fail, Q) = TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t)
-                if fail:
-                    rho_t[knot-1] = 0.75*rho_t[knot-1]
-                    print(f"First Mult step Error in knot {knot-1}")
-
-            print("---------------")
-            print(Q)
-            print("---------------")
-
-            # Search for rho, fixing the multiplier        
-            fail = True
-            while (fail):
-                (fail, rho_opt) = TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t)
-                if fail:
-                    #rho_t[knot-1] = 0.75*rho_t[knot-1]
-                    #(mul_fail, Q) = TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t)
-                    print(f"Rho step Error in knot {knot-1}")
-
-            rho_max = max(rho_opt, rho_max)
-            rho_t[knot-1] = rho_max
-            
-        print("---------------")
-        print(rho_t)
-        print("---------------")
-        
-        # Check for convergence
-        if((np.sum(rho_t) - np.sum(rho_t_prev))/np.sum(rho_t_prev) < eps): 
-            convergence = True
-        rho_t_prev = rho_t
-
-    return (rho_t, controller.tvlqr.S)
-
-#########################
-# SOS Funnels computation
-#########################
-
 def TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t):
 
     # failing checker
