@@ -31,7 +31,7 @@ def TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t):
     xbar = prog.NewIndeterminates(2, "x") # shifted system state
 
     rho_i = prog.NewContinuousVariables(1)[0]
-    rho_dot_i = 0
+    rho_dot_i = (rho_t[knot] - rho_i)/dt
     prog.AddCost(-rho_i)
     prog.AddConstraint(rho_i >= 0)
 
@@ -138,7 +138,7 @@ def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
     Vdot_plus = Vdot_i_t + V_i.Jacobian(xbar).dot(fn_plus)
 
     # Multipliers definition
-    h = prog.NewFreePolynomial(Variables(xbar), 4)
+    (h, Q) = prog.NewSosPolynomial(Variables(xbar), 4)
     mu_ij = h.ToExpression()
     lambda_1 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
     lambda_2 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
@@ -179,7 +179,7 @@ def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
             else:
                 col += 1
 
-        (fail, Q) = TVmultSearch_StepBack(prog, gamma, result.get_optimal_cost(), 0.1, h)
+        #(fail, Q) = TVmultSearch_StepBack(prog, gamma, result.get_optimal_cost(), 0.1, h)
 
     else:
         Q = None
