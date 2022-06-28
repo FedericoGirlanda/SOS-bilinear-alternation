@@ -1,23 +1,14 @@
 import numpy as np
 from pydrake.all import Variables, MonomialBasis, Solve, MathematicalProgram, Jacobian, PiecewisePolynomial
+from pydrake.symbolic import Polynomial as simb_poly
+from pydrake.symbolic import sin, TaylorExpand
 
-def TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t):
-
-    # failing checker
-    fail = False
+def TVrhoSearch(pendulum, controller, knot, time, h_map, rho_t):
 
     # Sampled constraints
     t_iplus1 = time[knot]
     t_i = time[knot-1]
     dt = t_iplus1 - t_i
-
-    # K and S matrices from TVLQR control
-    K_t = controller.tvlqr.K
-    S_t = controller.tvlqr.S
-    K_i = K_t.value(t_i)
-    S_i = S_t.value(t_i)
-    S_iplus1 = S_t.value(t_iplus1)
-    Sdot_i = (S_iplus1-S_i)/dt
 
     # Pendulum parameters
     m = pendulum.m
@@ -29,20 +20,27 @@ def TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t):
     # Opt. problem definition
     prog = MathematicalProgram()
     xbar = prog.NewIndeterminates(2, "x") # shifted system state
-
     rho_i = prog.NewContinuousVariables(1)[0]
     rho_dot_i = (rho_t[knot] - rho_i)/dt
     prog.AddCost(-rho_i)
     prog.AddConstraint(rho_i >= 0)
 
     # Dynamics definition
-    xg = np.array(x0_traj).T[knot-1] 
-    x = xbar + xg
-    ubar = -K_i.dot(xbar)[0]
-    Tsin = -(x[0]-xg[0]) + (x[0]-xg[0])**3/6  - (x[0]-xg[0])**5/120 
-    fn = [x[1], (ubar-b*x[1]-Tsin*m*g*l)/(m*l*l)]
+    u0 = controller.tvlqr.u0.value(t_i)[0]
+    K_i = controller.tvlqr.K.value(t_i)[0]
+    ubar = - K_i.dot(xbar)
+    u = (u0 + ubar)[0] #input
+
+    x0 = controller.tvlqr.x0.value(t_i)
+    x = (xbar + x0)[0]
+    Tsin_x = TaylorExpand(sin(x[0]),{xbar[0]: 0}, 5)
+    fn = [xbar[1], (ubar -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)] # shifted state dynamics
 
     # Lyapunov function and its derivative
+    S_t = controller.tvlqr.S
+    S_i = S_t.value(t_i)
+    S_iplus1 = S_t.value(t_iplus1)
+    Sdot_i = (S_iplus1-S_i)/dt
     V_i = (xbar).dot(S_i.dot(xbar))
     Vdot_i_x = V_i.Jacobian(xbar).dot(fn)
     Vdot_i_t = xbar.dot(Sdot_i.dot(xbar))
@@ -51,56 +49,54 @@ def TVrhoSearch(pendulum, controller, x0_traj, knot, time, Q, rho_t):
     # Boundaries due to the saturation 
     u_minus = - torque_limit
     u_plus = torque_limit
-    fn_minus = [x[1], (u_minus-b*x[1]-Tsin*m*g*l)/(m*l*l)] 
+    fn_minus = [xbar[1], (u_minus -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)]
     Vdot_minus = Vdot_i_t + V_i.Jacobian(xbar).dot(fn_minus)
-    fn_plus = [x[1], (u_plus-b*x[1]-Tsin*m*g*l)/(m*l*l)] 
+    fn_plus = [xbar[1], (u_plus -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)]
     Vdot_plus = Vdot_i_t + V_i.Jacobian(xbar).dot(fn_plus)
 
     # Multipliers definition
-    lambda_1 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
+    lambda_1 = prog.NewSosPolynomial(Variables(xbar), 4)[0]
+    h = lambda_1
+    lambda_1 = lambda_1.ToExpression()
     lambda_2 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
     lambda_3 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
     lambda_4 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
 
-    # Retriving the mu result from the Q matrix
-    MB = MonomialBasis(Variables(xbar), 2)
-    h = 0
-    for i, mi in enumerate(MB):
-        for j, mj in enumerate(MB):
-            h += mi.ToExpression() * Q[i, j] * mj.ToExpression()
+    # Retriving the mu result 
+    ordered_basis = list(h.monomial_to_coefficient_map().keys())
+    zip_iterator = zip(ordered_basis, list(h_map.values()))
+    h_dict = dict(zip_iterator)
+    h = simb_poly(h_dict)
+    h.RemoveTermsWithSmallCoefficients(4)
+    mu_ij = h.ToExpression()
 
     # Optimization constraints 
-    constr_minus = - (Vdot_minus) +rho_dot_i + h*(V_i - rho_i) + lambda_1*(-u_minus+ubar) 
-    constr = - (Vdot_i) + rho_dot_i + + h*(V_i - rho_i) + lambda_2*(u_minus-ubar) + lambda_3*(-u_plus+ubar) 
-    constr_plus = - (Vdot_plus) +rho_dot_i + h*(V_i - rho_i) + lambda_4*(u_plus-ubar) 
+    eps = 0.001
+    constr_minus = eps - (Vdot_minus) +rho_dot_i + mu_ij*(V_i - rho_i) + lambda_1*(-u_minus+ubar) 
+    constr = eps - (Vdot_i) + rho_dot_i + mu_ij*(V_i - rho_i) + lambda_2*(u_minus-ubar) + lambda_3*(-u_plus+ubar) 
+    constr_plus = eps - (Vdot_plus) +rho_dot_i + mu_ij*(V_i - rho_i) + lambda_4*(u_plus-ubar) 
 
     for c in [constr_minus, constr, constr_plus]:
         prog.AddSosConstraint(c)
 
     # Solve the problem
     result = Solve(prog)
-    rho_i = result.GetSolution(rho_i)
-    fail = not result.is_success()
 
-    return (fail, rho_i)
-
-def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
+    rho_opt = result.GetSolution(rho_i)
 
     # failing checker
-    fail = False
+    fail = not result.is_success()
+    if fail:
+        print("rho step Error")
+
+    return fail, rho_opt
+
+def TVmultSearch(pendulum, controller, knot, time, rho_t):
 
     # Sampled constraints
     t_iplus1 = time[knot]
     t_i = time[knot-1]
     dt = t_iplus1 - t_i
-
-    # K and S matrices from TVLQR control
-    K_t = controller.tvlqr.K
-    S_t = controller.tvlqr.S
-    K_i = K_t.value(t_i)
-    S_i = S_t.value(t_i)
-    S_iplus1 = S_t.value(t_iplus1)
-    Sdot_i = (S_iplus1-S_i)/dt
 
     # Pendulum parameters
     m = pendulum.m
@@ -111,19 +107,27 @@ def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
 
     # Opt. problem definition
     prog = MathematicalProgram()
-    xbar = prog.NewIndeterminates(2, "state") # shifted system state
+    xbar = prog.NewIndeterminates(2, "x") # shifted system state
     gamma = prog.NewContinuousVariables(1)[0]
     prog.AddCost(gamma)
     prog.AddConstraint(gamma <= 0)
 
     # Dynamics definition
-    xg = np.array(x0_traj).T[knot-1] 
-    x = xbar + xg
-    ubar = -K_i.dot(xbar)[0]
-    Tsin = -(x[0]-xg[0]) + (x[0]-xg[0])**3/6  - (x[0]-xg[0])**5/120 
-    fn = [x[1], (ubar-b*x[1]-Tsin*m*g*l)/(m*l*l)]
+    u0 = controller.tvlqr.u0.value(t_i)[0]
+    K_i = controller.tvlqr.K.value(t_i)[0]
+    ubar = - K_i.dot(xbar)
+    u = (u0 + ubar)[0] #input
+
+    x0 = controller.tvlqr.x0.value(t_i)
+    x = (xbar + x0)[0]
+    Tsin_x = TaylorExpand(sin(x[0]),{xbar[0]: 0}, 5)
+    fn = [xbar[1], (ubar -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)] # shifted state dynamics
 
     # Lyapunov function and its derivative
+    S_t = controller.tvlqr.S
+    S_i = S_t.value(t_i)
+    S_iplus1 = S_t.value(t_iplus1)
+    Sdot_i = (S_iplus1-S_i)/dt
     V_i = (xbar).dot(S_i.dot(xbar))
     Vdot_i_x = V_i.Jacobian(xbar).dot(fn)
     Vdot_i_t = xbar.dot(Sdot_i.dot(xbar))
@@ -132,13 +136,13 @@ def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
     # Boundaries due to the saturation 
     u_minus = - torque_limit
     u_plus = torque_limit
-    fn_minus = [x[1], (u_minus-b*x[1]-Tsin*m*g*l)/(m*l*l)] 
+    fn_minus = [xbar[1], (u_minus -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)]
     Vdot_minus = Vdot_i_t + V_i.Jacobian(xbar).dot(fn_minus)
-    fn_plus = [x[1], (u_plus-b*x[1]-Tsin*m*g*l)/(m*l*l)] 
+    fn_plus = [xbar[1], (u_plus -b*xbar[1]-(Tsin_x-np.sin(x0[0]))*m*g*l)/(m*l*l)]
     Vdot_plus = Vdot_i_t + V_i.Jacobian(xbar).dot(fn_plus)
 
     # Multipliers definition
-    (h, Q) = prog.NewSosPolynomial(Variables(xbar), 4)
+    h = prog.NewFreePolynomial(Variables(xbar), 4)
     mu_ij = h.ToExpression()
     lambda_1 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
     lambda_2 = prog.NewSosPolynomial(Variables(xbar), 4)[0].ToExpression()
@@ -159,64 +163,19 @@ def TVmultSearch(pendulum, controller, x0_traj, knot, time, rho_t):
         prog.AddSosConstraint(c)
 
     # Solve the problem and store the polynomials
-    result = Solve(prog)
-    if result.is_success():
+    result_mult = Solve(prog)  
 
-        mb_ = MonomialBasis(h.indeterminates(), 2)
-        Qdim = mb_.shape[0]
+    h_map = result_mult.GetSolution(h).monomial_to_coefficient_map()
+    eps = result_mult.get_optimal_cost()
 
-        coeffs = h.decision_variables()
-        Q = np.zeros((Qdim, Qdim))
-        row = 0
-        col = 0
-        for k, coeff in enumerate(coeffs):
-            Q[row, col] = result.GetSolution(coeff)
-            Q[col, row] = result.GetSolution(coeff)
+    # failing checker
+    fail = not result_mult.is_success()
+    if fail:
+        print(f"mult step Error, gamma is: {eps}")  
 
-            if col == Q.shape[0] - 1:
-                row += 1
-                col = row
-            else:
-                col += 1
+    # go ahead if right enouf, step back?
+    if (round(eps*10e-5) == 0):
+        fail = False
 
-        #(fail, Q) = TVmultSearch_StepBack(prog, gamma, result.get_optimal_cost(), 0.1, h)
 
-    else:
-        Q = None
-        fail = True
-
-    return fail, Q
-
-def TVmultSearch_StepBack(prog, objective, optimalCost, eps, h):
-
-    fail = False
-
-    prog.AddCost(-objective)
-    prog.AddConstraint(objective <= optimalCost + eps)
-
-    # Solve the problem and store the polynomials
-    result = Solve(prog)
-    if result.is_success():
-
-        mb_ = MonomialBasis(h.indeterminates(), 2)
-        Qdim = mb_.shape[0]
-
-        coeffs = h.decision_variables()
-        Q = np.zeros((Qdim, Qdim))
-        row = 0
-        col = 0
-        for k, coeff in enumerate(coeffs):
-            Q[row, col] = result.GetSolution(coeff)
-            Q[col, row] = result.GetSolution(coeff)
-
-            if col == Q.shape[0] - 1:
-                row += 1
-                col = row
-            else:
-                col += 1
-
-    else:
-        Q = None
-        fail = True
-
-    return fail, Q
+    return fail, h_map
