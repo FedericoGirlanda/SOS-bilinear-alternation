@@ -1,5 +1,12 @@
+"""
+Pendulum Plant
+==============
+"""
+
+
 import numpy as np
 import yaml
+
 
 class PendulumPlant_:
     def __init__(self, mass=1.0, length=0.5, damping=0.1, gravity=9.81,
@@ -206,3 +213,17 @@ class PendulumPlant_:
 
         res = np.zeros(2*self.dof)
         res[0] = state[1]
+        res[1] = accn
+        return res
+
+    def potential_energy(self, state):
+        Epot = self.m*self.g*self.l*(1-np.cos(state[0]))
+        return Epot
+
+    def kinetic_energy(self, state):
+        Ekin = 0.5*self.m*(self.l*state[1])**2.0
+        return Ekin
+
+    def total_energy(self, state):
+        E = self.potential_energy(state) + self.kinetic_energy(state)
+        return E
