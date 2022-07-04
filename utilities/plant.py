@@ -232,7 +232,7 @@ class PendulumPlant_:
 class PendulumPlantApprox:
     def __init__(self, mass=1.0, length=0.5, damping=0.1, gravity=9.81,
                  coulomb_fric=0.0, inertia=None, torque_limit=np.inf, taylorApprox_order = 1, 
-                 nominal_traj = None, time_traj = None):
+                 nominal_traj = None):
 
         """
         The PendulumPlantApprox class contains the taylor-approximated dynamics
@@ -281,7 +281,6 @@ class PendulumPlantApprox:
         self.torque_limit = torque_limit
 
         self.nominal_t = nominal_traj
-        self.time_t = time_traj
 
         self.dof = 1
         self.n_actuators = 1
@@ -315,11 +314,7 @@ class PendulumPlantApprox:
 
         # Taylor approximation of the sine term
         x0 = Variable("theta")
-        if time < self.time_t[-1]:
-            index = np.where(self.time_t >= time)[0][0]
-        else:
-            index = -1
-        Tsin_exp = TaylorExpand(sin(x0), {x0: np.array(self.nominal_t).T[index][0]},self.order)
+        Tsin_exp = TaylorExpand(sin(x0), {x0: self.nominal_t.value(time)[0] },self.order)
         Tsin = Tsin_exp.Evaluate({x0 : state[0]})
 
         accn = (torque - self.m * self.g * self.l * Tsin -
