@@ -1,7 +1,13 @@
 # SOS-bilinear-alternation
 This repository aims to store my implementation of the SOS bilinear alternation for a torque limited simple pendulum. 
 
-Current state: the estimation is succeeding in providing me a meaningful Funnel but the verification gives me some fails, teoretically I am not expecting such fails since I am implementing an inner estimation of the RoA.
+    Current state: 
+
+    the estimation is succeeding in providing me a meaningful Funnel but the verification gives me some fails, teoretically I am not expecting such fails since I am implementing an inner estimation of the RoA.
+
+    In the "probEst_result.pdf" file you can find the result of a simulation based estimation implemented on the same plant and with the same Simulator class. The estimation is way more shrinked in some regions, should I be so pessimistic in my estimation? Does it depends on my simulation way and maybe the real behaviour is, against every prediction, better? or my result from the SOS estimation is too optimistic/wrong and I should change it somehow? 
+
+    It is worthful to point out that the verification has been tryied with and without the taylor approximation and it seems to be very similar. Actually, a local approximation with, in my case, a 5th order Taylor approximation seems to lead to a very "realistic" dynamics. Can it be an advantage against the polynomial approximation that we need for using the SOS method in the time-varying RoA estimation?
 
 ## Implementation description #
 This implementation provides a time-varying estimation of the region of attraction(RoA). The obtained state region is called "Funnel". This analysis permits to observe, under a time-varying LQR stabilization, how far the state of the system can deviate from the nominal trajectory and remain stable. 
