@@ -168,7 +168,7 @@ def TVmultSearch(pendulum, controller, knot, time, rho_t):
     # failing checker
     fail = not result_mult.is_success()
     if fail:
-        print(f"mult step Error, gamma is: {eps}")  
+        print(f"mult step Error, decreasing rho to make it feasible...")  
 
     # go ahead if right enough, step back?
     if eps < np.inf:
