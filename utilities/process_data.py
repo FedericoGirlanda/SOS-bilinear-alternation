@@ -7,7 +7,24 @@ def saveFunnel(rho, S_t, time, N, max_dt):
     for i in range(1,len(time)):
         S = np.vstack((S,S_t.value(time[i]).flatten()))
 
-    log_dir = "log_data/funnel"
+    log_dir = "log_data/sos"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    csv_data = np.vstack((rho, np.array(S).T))
+
+    csv_path = os.path.join(log_dir, f"funnel{max_dt}-{N}.csv")
+    np.savetxt(csv_path, csv_data, delimiter=',',
+            header="rho,S_t", comments="")
+    return csv_path
+
+def saveFunnel_probabilistic(rho, S_t, time, N, max_dt):
+
+    S = S_t.value(time[0]).flatten()
+    for i in range(1,len(time)):
+        S = np.vstack((S,S_t.value(time[i]).flatten()))
+
+    log_dir = "log_data/probabilistic"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
