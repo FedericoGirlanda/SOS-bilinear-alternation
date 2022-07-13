@@ -377,3 +377,25 @@ def plotFunnel_fromCsv(csv_path, x0, time):
         ax.add_collection(LineCollection(line_segments,
                                      colors='green',
                                      linestyle='solid'))
+
+def ellipseComparison(csv_path_sos, csv_path_prob, x0, knot):
+
+    (rho_sos, S_sos) = getEllipseFromCsv(csv_path_sos,knot)
+    (rho_prob, S_prob) = getEllipseFromCsv(csv_path_prob,knot)
+
+    # figure initialization
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    plt.title(f"Ellipse comparison in knot {knot}")
+    plt.grid(True)
+    labels=["theta [rad]","theta_dot [rad/s]"]
+    s0=0
+    s1=1
+    ax.set_xlabel(labels[s0])
+    ax.set_ylabel(labels[s1])
+
+    ax.scatter(x0[s0][knot],x0[s1][knot],color="black",marker="o")
+    p_prob = get_ellipse_patch(x0[s0][knot],x0[s1][knot],rho_prob,S_prob,linec= "red")
+    p_sos = get_ellipse_patch(x0[s0][knot],x0[s1][knot],rho_sos,S_sos,linec= "green")
+    ax.add_patch(p_prob)
+    ax.add_patch(p_sos)
