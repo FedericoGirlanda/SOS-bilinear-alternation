@@ -333,7 +333,7 @@ def plotFunnel3d_fromCsv(csv_path, x0, time, ax):
     ax.set_ylim(-6, 6)
     ax.set_zlim(-6, 6)
 
-def plotFunnel_fromCsv(csv_path, x0, time):
+def plotFunnel_fromCsv(csv_path, x0, time, ax = None):
     '''
     Function to draw a continue 2d funnel plot. This implementation makes use of the convex hull concept
     as done in the MATLAB code of the Robot Locomotion Group (https://groups.csail.mit.edu/locomotion/software.html).
@@ -350,19 +350,22 @@ def plotFunnel_fromCsv(csv_path, x0, time):
     '''
 
     # figure initialization
-    fig = plt.figure()
-    ax = fig.add_subplot()
+    zorder = 2
+    funnel_color = 'red'
+    if (ax == None):
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        ax.plot(x0[0],x0[1], zorder = 3) # plot of the nominal trajectory
+        zorder = 1
+        funnel_color = 'green'
+    
     plt.title("2d resulting Funnel")
     plt.grid(True)
     labels=["theta [rad]","theta_dot [rad/s]"]
-    s0=0
-    s1=1
-    ax.set_xlabel(labels[s0])
-    ax.set_ylabel(labels[s1])
+    ax.set_xlabel(labels[0])
+    ax.set_ylabel(labels[1])
     ax.set_xlim(-2, 4)
     ax.set_ylim(-20, 20)
-
-    ax.plot(x0[s0],x0[s1]) # plot of the nominal trajectory
 
     for i in range(len(time)-1):
         (rho_i, S_i) = getEllipseFromCsv(csv_path,i)
@@ -375,8 +378,9 @@ def plotFunnel_fromCsv(csv_path, x0, time):
         hull = ConvexHull(points) 
         line_segments = [hull.points[simplex] for simplex in hull.simplices]
         ax.add_collection(LineCollection(line_segments,
-                                     colors='green',
-                                     linestyle='solid'))
+                                     colors=funnel_color,
+                                     linestyle='solid', zorder = zorder))
+    return ax
 
 def ellipseComparison(csv_path_sos, csv_path_prob, x0, knot):
 
@@ -394,8 +398,15 @@ def ellipseComparison(csv_path_sos, csv_path_prob, x0, knot):
     ax.set_xlabel(labels[s0])
     ax.set_ylabel(labels[s1])
 
-    ax.scatter(x0[s0][knot],x0[s1][knot],color="black",marker="o")
+    ax.scatter(x0[s0][knot],x0[s1][knot],color="blue",marker="o")
     p_prob = get_ellipse_patch(x0[s0][knot],x0[s1][knot],rho_prob,S_prob,linec= "red")
     p_sos = get_ellipse_patch(x0[s0][knot],x0[s1][knot],rho_sos,S_sos,linec= "green")
     ax.add_patch(p_prob)
     ax.add_patch(p_sos)
+    p_prob.set_label("Sample-based probabilistic method")
+    p_sos.set_label("SOS optimization method")
+    ax.legend()
+
+def funnel2DComparison(csv_pathFunnelSos, csv_pathFunnelProb,x0_traj,time):
+    ax = plotFunnel_fromCsv(csv_pathFunnelProb, x0_traj, time)
+    plotFunnel_fromCsv(csv_pathFunnelSos, x0_traj, time, ax)
