@@ -197,7 +197,7 @@ def plotRhoEvolution(rho, x0_traj, time, N):
 # Funnels plot
 ##############
 
-def plotFunnel3d(rho, S, x0, time, ax):
+def plotFunnel3d(rho, S, x0, time, ax, phi_t):
     '''
     Function to draw a discrete 3d funnel plot. Basically we are plotting a 3d ellipse patch in each 
     knot point.
@@ -217,8 +217,10 @@ def plotFunnel3d(rho, S, x0, time, ax):
     '''
 
     for i in range(len(rho)):
+        phi_i = np.array([[phi_t[i][0], phi_t[i][1]],[phi_t[i][1], phi_t[i][2]]])
+
         # Drawing the main ellipse
-        ctg=np.asarray(S.value(time[i]))
+        ctg=np.asarray(S.value(time[i])+phi_i)
         labels=["theta [rad]","theta_dot [rad/s]"]
         s0=0
         s1=1
@@ -240,7 +242,7 @@ def plotFunnel3d(rho, S, x0, time, ax):
     ax.set_ylim(-6, 6)
     ax.set_zlim(-6, 6)
 
-def plotFunnel(rho, S, x0, time):
+def plotFunnel(rho, S, x0, time, phi_t):
     '''
     Function to draw a continue 2d funnel plot. This implementation makes use of the convex hull concept
     as done in the MATLAB code of the Robot Locomotion Group (https://groups.csail.mit.edu/locomotion/software.html).
@@ -273,8 +275,11 @@ def plotFunnel(rho, S, x0, time):
     ax.plot(x0[s0],x0[s1]) # plot of the nominal trajectory
 
     for i in range(len(rho)-1):
-        c_prev = getEllipseContour(S.value(time[i]),rho[i], np.array(x0).T[i]) # get the contour of the previous ellipse
-        c_next = getEllipseContour(S.value(time[i+1]),rho[i+1], np.array(x0).T[i+1]) # get the contour of the next ellipse
+        phi_i = np.array([[phi_t[i][0], phi_t[i][1]],[phi_t[i][1], phi_t[i][2]]])
+        phi_iplus1 = np.array([[phi_t[i+1][0], phi_t[i+1][1]],[phi_t[i+1][1], phi_t[i+1][2]]])
+
+        c_prev = getEllipseContour((S.value(time[i])+phi_i),rho[i], np.array(x0).T[i]) # get the contour of the previous ellipse
+        c_next = getEllipseContour((S.value(time[i+1])+phi_iplus1),rho[i+1], np.array(x0).T[i+1]) # get the contour of the next ellipse
         points = np.vstack((c_prev,c_next))
 
         # plot the convex hull of the two contours

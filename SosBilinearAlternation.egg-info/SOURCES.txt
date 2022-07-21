@@ -1,0 +1,8 @@
+LICENSE
+README.md
+setup.py
+SosBilinearAlternation.egg-info/PKG-INFO
+SosBilinearAlternation.egg-info/SOURCES.txt
+SosBilinearAlternation.egg-info/dependency_links.txt
+SosBilinearAlternation.egg-info/requires.txt
+SosBilinearAlternation.egg-info/top_level.txt

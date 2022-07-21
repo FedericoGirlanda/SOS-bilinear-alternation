@@ -2,6 +2,7 @@ import numpy as np
 
 from pydrake.solvers.mathematicalprogram import Solve
 from pydrake.all import Variables, Jacobian, MathematicalProgram
+#from pydrake.solvers import MosekSolver
 
 def SOSequalityConstrained(pendulum, controller):
     """Estimate the RoA for the closed loop dynamics using the method described by Russ Tedrake in "Underactuated Robotics: Algorithms for Walking, Running, Swimming, Flying, and Manipulation", 
@@ -79,4 +80,7 @@ def SOSequalityConstrained(pendulum, controller):
 
     # Solve the problem
     result = Solve(prog)
+    # solver = MosekSolver()
+    # result = solver.Solve(prog)
+
     return [result.GetSolution(rho), S]
