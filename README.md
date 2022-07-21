@@ -3,9 +3,9 @@ This repository aims to store my implementation of the SOS bilinear alternation 
 
 >Current state: 
 >
->the estimation is succeeding in providing me a meaningful Funnel. The result is comparable to another one obtained with a simulation-based method for the RoA estimation.
+>the estimation is succeeding in providing me a meaningful Funnel. The result is comparable to another one obtained with a simulation-based method for the RoA estimation. This last method seems, as expected, to overestimate a bit wrt the SOS estimation.
 >
->However, the obtained Funnel is very narrow as you go away from the desired goal region in both of the estimations. I know from a trial-error approach that the Funnel can be a bit bigger, can I do better?
+>I am thinking about implementing a further tool to gain a better estimation but now it is already quite satisfying. This new improvement is based on an optimization of the S matrix that defines the Lyapunov function.
 
 ## Implementation description #
 This implementation provides a time-varying estimation of the region of attraction(RoA). The obtained state region is called "Funnel". This analysis permits to observe, under a time-varying LQR stabilization, how far the state of the system can deviate from the nominal trajectory and remain stable. 
